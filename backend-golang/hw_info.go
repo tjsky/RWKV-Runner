@@ -65,15 +65,56 @@ func (a *App) GetSupportedCudaVersion() (string, error) {
 		return "", err
 	}
 
-	lines := strings.Split(output, "\n")
+	return parseSupportedCudaVersion(output)
+}
 
-	for _, line := range lines {
-		if strings.Contains(line, "CUDA Version") {
-			return strings.TrimSpace(strings.Split(line, ":")[1]), nil
+func parseSupportedCudaVersion(output string) (string, error) {
+	var fallbackVersion string
+
+	for _, line := range strings.Split(output, "\n") {
+		key, value, ok := strings.Cut(line, ":")
+		if !ok {
+			continue
+		}
+
+		version := parseCudaVersion(value)
+		if version == "" {
+			continue
+		}
+
+		switch strings.TrimSpace(key) {
+		case "CUDA UMD Version":
+			return version, nil
+		case "CUDA Version":
+			if fallbackVersion == "" {
+				fallbackVersion = version
+			}
 		}
 	}
 
+	if fallbackVersion != "" {
+		return fallbackVersion, nil
+	}
 	return "", errors.New("cuda version is empty")
+}
+
+func parseCudaVersion(value string) string {
+	fields := strings.Fields(value)
+	if len(fields) == 0 {
+		return ""
+	}
+
+	version := fields[0]
+	parts := strings.Split(version, ".")
+	if len(parts) < 2 {
+		return ""
+	}
+	for _, part := range parts {
+		if _, err := strconv.Atoi(part); err != nil {
+			return ""
+		}
+	}
+	return version
 }
 
 func (a *App) GetTorchVersion(python string) (string, error) {
